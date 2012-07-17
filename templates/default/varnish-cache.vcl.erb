@@ -1,0 +1,91 @@
+backend default {
+    .host = "127.0.0.1";
+    .port = "81";
+    .first_byte_timeout = 300s;
+}
+
+sub vcl_recv {
+    # Serve objects up to 30 minutes past their expiry
+    # if the backend is slow to respond.
+    set req.grace = 1800s;
+
+    # Pass any non-GET requests straight to the backend
+    if (req.request != "GET") {
+        return(pipe);
+    }
+
+    # Some known-static file types
+    if (req.url ~ "^[^?]*\.(css|js|htc|xml|txt|swf|flv|pdf|gif|jpe?g|png|ico)$") {
+        # Pretent no cookie was passed
+        unset req.http.Cookie;
+    }
+
+    # Pass requests from logged-in users directly.
+    if (req.http.Authorization || req.http.Cookie) {
+        # Not cacheable by default
+        return(pass);
+    }
+
+    # Force lookup if the request is a no-cache request from the client.
+    if (req.http.Cache-Control ~ "no-cache") {
+        purge_url(req.url);
+    }
+
+    # normalize Accept-Encoding to reduce vary
+    if (req.http.Accept-Encoding) {
+        if (req.http.User-Agent ~ "MSIE 6") {
+            unset req.http.Accept-Encoding;
+        }
+        elsif (req.http.Accept-Encoding ~ "gzip") {
+            set req.http.Accept-Encoding = "gzip";
+        }
+        elsif (req.http.Accept-Encoding ~ "deflate") {
+            set req.http.Accept-Encoding = "deflate";
+        }
+        else {
+            unset req.http.Accept-Encoding;
+        }
+    }
+
+    return(lookup);
+}
+
+sub vcl_pipe {
+    # Note that only the first request to the backend will have
+    # X-Forwarded-For set.  If you use X-Forwarded-For and want to
+    # have it set for all requests, make sure to have:
+    # set req.http.connection = "close";
+
+    set req.http.connection = "close";
+}
+
+sub vcl_fetch {
+    # set minimum timeouts to auto-discard stored objects
+    set beresp.grace = 600s;
+
+    # Don't cache negative lookups
+    if (beresp.status >= 400) {
+       set beresp.ttl = 0s;
+       return(pass);
+    }
+
+    if (!beresp.cacheable || req.http.Authorization) {
+        return(pass);
+    }
+
+    # Some known-static file types
+    if (req.url ~ "^[^?]*\.(css|js|htc|xml|txt|swf|flv|pdf|gif|jpe?g|png|ico)$") {
+        # Force caching
+        remove beresp.http.Pragma;
+        remove beresp.http.Set-Cookie;
+        set beresp.http.Cache-Control = "public";
+    }
+
+    if (beresp.http.Set-Cookie) {
+        return(pass);
+    }
+
+    if (!beresp.http.Cache-Control ~ "public" || beresp.http.Pragma ~ "(no-cache|private)") {
+        return(pass);
+    }
+}

@@ -1,0 +1,27 @@
+
+<VirtualHost *:81>
+    ServerName <%= @name %>
+
+    DocumentRoot /var/www/<%= @name %>/htdocs
+    <Directory />
+        Options FollowSymLinks
+        AllowOverride None
+    </Directory>
+    <Directory /var/www/<%= @name %>/htdocs>
+        Options FollowSymLinks
+        AllowOverride All
+        Order allow,deny
+        Allow from all
+    </Directory>
+
+    <Location /apache-status>
+        SetHandler server-status
+        Order Deny,Allow
+        Allow from 192.168.0.0/16
+        Deny from all
+    </Location>
+
+    LogLevel warn
+    # Do not include inode in ETag
+    FileETag MTime Size
+</VirtualHost>

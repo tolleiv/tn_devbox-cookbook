@@ -1,0 +1,45 @@
+<% if @port then %>
+upstream dev_<%= @name %>varnish {
+    server localhost:<%= @port %>;
+    server localhost:81 backup;
+}
+<% end %>
+upstream dev_<%= @name %>apache {
+    server localhost:81;
+}
+
+server {
+    listen       *:80;
+    server_name  <%= @name %>;
+
+    proxy_intercept_errors on;
+    error_page 500 501 502 503 504 /custom-errors/503.html;
+    location /custom-errors/ {
+        root /etc/nginx/;
+    }
+
+    location /nginx-status {
+        stub_status on;
+        access_log off;
+        allow 192.168.0.0/16;
+        allow 127.0.0.1;
+        deny all;
+    }
+
+    location / {
+        <% if @varnishPost then %>
+        proxy_pass http://dev_<%= @name %>varnish;
+        if ($request_method != GET) {
+            # Varnish only handles GET requests
+            proxy_pass http://dev_<%= @name %>apache;
+        }
+        <% else %>
+            proxy_pass http://dev_<%= @name %>apache;
+        <% end %>
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header HTTPS "";
+    }
+}

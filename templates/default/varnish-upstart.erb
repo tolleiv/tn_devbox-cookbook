@@ -1,0 +1,17 @@
+description "varnish daemon"
+
+start on runlevel [2345]
+stop on shutdown
+
+expect fork
+
+exec /usr/local/sbin/varnishd -a <%= node['varnish']['listen_address'] %>:<%= @port %> \
+    -f <%= @vclPath %>.vcl \
+    -s <%= node['varnish']['storage'] %>,<%= (node['varnish']['storage']=='file')?"#{node['varnish']['storage_file']},":'' %><%= node['varnish']['storage_size'] %> \
+    -T <%= node['varnish']['admin_listen_address'] %>:<%= @backendPort %> \
+    -u <%= node['varnish']['user'] %> -g <%= node['varnish']['group'] %> \
+    -t <%= node['varnish']['ttl'] %> \
+    -w <%= node['varnish']['min_threads'] %>,<%= node['varnish']['max_threads'] %>,<%= node['varnish']['thread_timeout'] %> \
+    -S <%= node['varnish']['secret_file'] %>
+
+respawn
