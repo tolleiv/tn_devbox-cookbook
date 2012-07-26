@@ -5,7 +5,7 @@ description      "Install the default LAMP stack in my preffered development fla
 long_description IO.read(File.join(File.dirname(__FILE__), 'README.md'))
 version          "0.1.0"
 
-%w{ apache2 git nginx varnish mysql vim }.each do |cb|
+%w{ apache2 git nginx varnish mysql vim apt }.each do |cb|
   depends cb
 end
 
